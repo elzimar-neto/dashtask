@@ -3,55 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DASHTASK V1.0</title>
+    <title>DASHTASK V1.0 | Elzimar Neto</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <header>
-        <div class="logo">DASHTASK <span>V1.0</span></div>
+        <div class="logo"><i class="fas fa-tasks"></i> DASHTASK <span>V1.0</span></div>
         
         <div class="header-right">
             <select id="team-selector">
                 <option value="personal">Minhas Tarefas</option>
-                <option value="equipe-ufma">Equipe UFMA</option>
+                <option value="equipe-ufma">Equipe STED/UFMA</option>
                 <option value="equipe-alquimia">Grupo Alquimia</option>
             </select>
 
             <div id="auth-container">
-                <button id="btn-login" class="btn-google"><i class="fab fa-google"></i> Entrar</button>
+                <button id="btn-login" class="btn-google"><i class="fab fa-google"></i> Entrar com Google</button>
                 <div id="user-profile" class="hidden">
                     <img id="user-photo" src="" alt="Foto">
                     <span id="user-name"></span>
-                    <button id="btn-logout"><i class="fas fa-sign-out-alt"></i></button>
+                    <button id="btn-logout" title="Sair"><i class="fas fa-sign-out-alt"></i></button>
                 </div>
             </div>
         </div>
     </header>
 
     <main class="kanban-board">
-        <div class="column" id="todo" ondrop="drop(event)" ondragover="allowDrop(event)">
+        <section class="column" id="todo" ondrop="drop(event)" ondragover="allowDrop(event)">
             <h3><i class="fas fa-list"></i> A FAZER</h3>
             <div class="task-list" id="list-todo"></div>
-            <button class="add-btn" onclick="openModal('todo')">+ Nova Tarefa</button>
-        </div>
-        <div class="column" id="doing" ondrop="drop(event)" ondragover="allowDrop(event)">
+            <button class="add-btn" onclick="openModal()"><i class="fas fa-plus"></i> Adicionar Tarefa</button>
+        </section>
+
+        <section class="column" id="doing" ondrop="drop(event)" ondragover="allowDrop(event)">
             <h3><i class="fas fa-spinner fa-spin"></i> FAZENDO</h3>
             <div class="task-list" id="list-doing"></div>
-        </div>
-        <div class="column" id="done" ondrop="drop(event)" ondragover="allowDrop(event)">
-            <h3><i class="fas fa-check-double"></i> FEITO</h3>
+        </section>
+
+        <section class="column" id="done" ondrop="drop(event)" ondragover="allowDrop(event)">
+            <h3><i class="fas fa-check-double"></i> CONCLUÍDO</h3>
             <div class="task-list" id="list-done"></div>
-        </div>
+        </section>
     </main>
 
     <div id="modal-task" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
-            <h2>Cadastrar Tarefa</h2>
+            <h2>Nova Tarefa</h2>
             <form id="task-form">
                 <input type="text" id="task-title" placeholder="Título da tarefa" required>
-                <textarea id="task-desc" placeholder="Descrição (ex: manual do Moodle)"></textarea>
+                <textarea id="task-desc" placeholder="Descrição ou detalhes técnicos..."></textarea>
                 
                 <div class="form-row">
                     <div class="group">
@@ -65,11 +67,11 @@
                         </div>
                     </div>
                     <div class="group">
-                        <label>Data Limite:</label>
+                        <label>Prazo Final:</label>
                         <input type="date" id="task-deadline" required>
                     </div>
                 </div>
-                <button type="submit" class="btn-save">Salvar no Dashboard</button>
+                <button type="submit" class="btn-save">Salvar no Firebase</button>
             </form>
         </div>
     </div>
