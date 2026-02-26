@@ -1,90 +1,126 @@
-import * as fb from './firebase-config.js';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// Seletores DOM
-const modal = document.getElementById('modal-task');
-const openModalBtn = document.getElementById('open-modal-btn');
-const closeBtn = document.querySelector('.close-btn');
-const taskForm = document.getElementById('task-form');
-const teamSelector = document.getElementById('team-selector');
+// Suas credenciais oficiais
+const firebaseConfig = {
+    apiKey: "AIzaSyBEAd17qKJ1ye2qA8ZpNS8OiUYdwwR9XcY",
+    authDomain: "dashtask-b97f7.firebaseapp.com",
+    projectId: "dashtask-b97f7",
+    storageBucket: "dashtask-b97f7.firebasestorage.app",
+    messagingSenderId: "620539650037",
+    appId: "1:620539650037:web:83c1ea36579059c9420abc"
+};
 
-// Abrir/Fechar Modal
-openModalBtn.onclick = () => modal.style.display = 'block';
-closeBtn.onclick = () => modal.style.display = 'none';
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
-// --- Lógica de Dados Real-time ---
-function syncTasks() {
-    const currentTeam = teamSelector.value;
-    const q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", currentTeam));
+let currentUser = null;
 
-    fb.onSnapshot(q, (snapshot) => {
-        document.querySelectorAll('.drop-zone').forEach(el => el.innerHTML = ""); // Limpa quadros
+// Observador de Autenticação
+onAuthStateChanged(auth, (user) => {
+    const loginBtn = document.getElementById('btn-login');
+    const userProfile = document.getElementById('user-profile');
+    
+    if (user) {
+        currentUser = user;
+        loginBtn.classList.add('hidden');
+        userProfile.classList.remove('hidden');
+        document.getElementById('user-name').innerText = user.displayName.split(' ')[0];
+        document.getElementById('user-photo').src = user.photoURL;
+        startSync();
+    } else {
+        currentUser = null;
+        loginBtn.classList.remove('hidden');
+        userProfile.classList.add('hidden');
+        limparQuadros();
+    }
+});
 
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            renderCard(doc.id, data);
-        });
+document.getElementById('btn-login').onclick = () => signInWithPopup(auth, provider);
+document.getElementById('btn-logout').onclick = () => signOut(auth);
+
+// Sincronização Real-time
+function startSync() {
+    if (!currentUser) return;
+    const team = document.getElementById('team-selector').value;
+    
+    const q = (team === 'personal') 
+        ? query(collection(db, "tasks"), where("teamId", "==", "personal"), where("uid", "==", currentUser.uid))
+        : query(collection(db, "tasks"), where("teamId", "==", team));
+
+    onSnapshot(q, (snapshot) => {
+        limparQuadros();
+        snapshot.forEach(d => renderCard(d.id, d.data()));
     });
 }
 
-function renderCard(id, data) {
-    const container = document.getElementById(`list-${data.status}`);
-    const stars = "★".repeat(data.priority) + "☆".repeat(5 - data.priority);
-    
-    const card = document.createElement('div');
-    card.className = 'task-card';
-    card.id = id;
-    card.draggable = true;
-    card.innerHTML = `
-        <button class="del-btn" onclick="deleteTask('${id}')" style="float:right; border:none; background:none; cursor:pointer; color:#ccc;">&times;</button>
-        <h4>${data.title}</h4>
-        <p>${data.description}</p>
-        <div class="stars">${stars}</div>
-        <div class="deadline"><i class="far fa-clock"></i> ${data.deadline}</div>
-    `;
-
-    // Eventos de Drag no Card
-    card.addEventListener('dragstart', e => e.dataTransfer.setData('text', e.target.id));
-    container.appendChild(card);
-}
-
-// --- Operações Firebase ---
-taskForm.onsubmit = async (e) => {
+// Salvar Tarefa
+document.getElementById('task-form').onsubmit = async (e) => {
     e.preventDefault();
+    if (!currentUser) return alert("Logue para salvar!");
+
     const newTask = {
         title: document.getElementById('task-title').value,
         description: document.getElementById('task-desc').value,
         priority: parseInt(document.querySelector('input[name="priority"]:checked').value),
         deadline: document.getElementById('task-deadline').value,
         status: 'todo',
-        teamId: teamSelector.value,
-        createdAt: fb.serverTimestamp()
+        teamId: document.getElementById('team-selector').value,
+        uid: currentUser.uid,
+        author: currentUser.displayName,
+        createdAt: serverTimestamp()
     };
 
-    await fb.addDoc(fb.collection(fb.db, "tasks"), newTask);
-    taskForm.reset();
-    modal.style.display = 'none';
+    await addDoc(collection(db, "tasks"), newTask);
+    closeModal();
+    e.target.reset();
 };
 
-// Configuração das Zonas de Drop
-document.querySelectorAll('.drop-zone').forEach(zone => {
-    zone.addEventListener('dragover', e => e.preventDefault());
-    zone.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        const taskId = e.dataTransfer.getData('text');
-        const newStatus = zone.id.replace('list-', '');
-        
-        const taskRef = fb.doc(fb.db, "tasks", taskId);
-        await fb.updateDoc(taskRef, { status: newStatus });
-    });
-});
+function renderCard(id, data) {
+    const list = document.getElementById(`list-${data.status}`);
+    const stars = "★".repeat(data.priority) + "☆".repeat(5 - data.priority);
+    
+    const card = document.createElement('div');
+    card.className = `task-card prio-${data.priority}`;
+    card.draggable = true;
+    card.id = id;
+    card.innerHTML = `
+        <div style="display:flex; justify-content:space-between;">
+            <strong>${data.title}</strong>
+            <span onclick="deleteTask('${id}')" style="cursor:pointer; color:#ccc;">&times;</span>
+        </div>
+        <p style="font-size:0.8em; color:#666;">${data.description}</p>
+        <div class="stars">${stars}</div>
+        <div style="font-size:0.7em; color:#888;">
+            <i class="fas fa-calendar"></i> ${data.deadline}
+        </div>
+    `;
 
-// Deletar Tarefa (Função global para o botão inline)
+    card.addEventListener('dragstart', e => e.dataTransfer.setData('text', e.target.id));
+    list.appendChild(card);
+}
+
+// Drag and Drop
+window.allowDrop = (e) => e.preventDefault();
+window.drop = async (e) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text');
+    const newStatus = e.currentTarget.id;
+    await updateDoc(doc(db, "tasks", id), { status: newStatus });
+};
+
 window.deleteTask = async (id) => {
-    if(confirm("Deseja excluir esta tarefa?")) {
-        await fb.deleteDoc(fb.doc(fb.db, "tasks", id));
-    }
+    if(confirm("Deseja apagar esta tarefa?")) await deleteDoc(doc(db, "tasks", id));
 };
 
-// Iniciar
-teamSelector.onchange = syncTasks;
-syncTasks();
+function limparQuadros() {
+    document.querySelectorAll('.task-list').forEach(l => l.innerHTML = "");
+}
+
+// Globais para o HTML
+window.openModal = () => document.getElementById('modal-task').style.display = 'block';
+window.closeModal = () => document.getElementById('modal-task').style.display = 'none';
+document.getElementById('team-selector').onchange = startSync;
