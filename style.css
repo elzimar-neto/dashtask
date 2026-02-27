@@ -4,35 +4,60 @@
     --bg: #f4f7f9;
 }
 
-body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; overflow: hidden; }
 
 .hidden { display: none !important; }
 
 /* Login */
 .auth-overlay { position: fixed; inset: 0; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; justify-content: center; align-items: center; z-index: 2000; }
 .login-card { background: white; padding: 40px; border-radius: 15px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); width: 350px; }
+.logo-icon { font-size: 50px; color: var(--primary); margin-bottom: 10px; }
 
 /* Layout */
-header { background: var(--primary); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
-.main-container { display: flex; height: calc(100vh - 100px); }
-.sidebar { width: 240px; background: #fff; border-right: 1px solid #ddd; padding: 15px; }
-.kanban-board { display: flex; flex-grow: 1; padding: 20px; gap: 20px; overflow-x: auto; }
-.column { background: #ebedf0; border-radius: 8px; width: 320px; min-width: 320px; padding: 10px; display: flex; flex-direction: column; }
-.task-list { flex-grow: 1; min-height: 100px; }
+header { background: var(--primary); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; height: 60px; box-sizing: border-box;}
+.main-container { display: flex; height: calc(100vh - 95px); }
 
-/* User Profile */
-.user-profile { position: relative; cursor: pointer; }
-#user-photo { width: 38px; border-radius: 50%; border: 2px solid #fff; }
-.user-dropdown { position: absolute; right: 0; top: 45px; background: white; box-shadow: 0 5px 15px rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; width: 200px; z-index: 100; color: #333; }
-.btn-logout-action { width: 100%; padding: 8px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+/* Sidebar */
+.sidebar { width: 240px; background: #fff; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; }
+.sidebar h3 { font-size: 0.75em; color: #888; letter-spacing: 1px; margin-bottom: 15px; }
+#groups-list { list-style: none; padding: 0; margin-bottom: 20px; }
+#groups-list li { padding: 10px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; font-size: 14px; }
+#groups-list li:hover { background: #f0f2f5; }
+.btn-sidebar { width: 100%; padding: 8px; border: 1px dashed var(--primary); background: transparent; color: var(--primary); cursor: pointer; border-radius: 5px; }
+
+/* Kanban Board */
+.kanban-board { display: flex; flex-grow: 1; padding: 20px; gap: 20px; overflow-x: auto; align-items: flex-start; }
+.column { background: #ebedf0; border-radius: 8px; width: 320px; min-width: 320px; padding: 10px; display: flex; flex-direction: column; max-height: 100%; }
+.column h3 { font-size: 0.85em; color: #555; text-align: center; margin-top: 5px; }
+.task-list { flex-grow: 1; min-height: 50px; overflow-y: auto; }
 
 /* Cards */
-.task-card { background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px; border-left: 5px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; }
-.card-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 10px; color: #bbb; cursor: pointer; }
+.task-card { background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px; border-left: 5px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative; cursor: grab; }
+.task-card.prio-5 { border-left-color: #e74c3c; }
+.task-card.prio-4 { border-left-color: #f39c12; }
+.card-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 10px; color: #ddd; }
+.card-actions i:hover { color: var(--primary); cursor: pointer; }
+.stars { color: #f1c40f; margin: 8px 0; font-size: 14px; }
+
+/* Profile */
+.user-profile { position: relative; cursor: pointer; }
+#user-photo { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #fff; }
+.user-dropdown { position: absolute; right: 0; top: 50px; background: white; box-shadow: 0 5px 20px rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; width: 220px; z-index: 1000; color: #333; }
+.btn-logout-action { width: 100%; padding: 8px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; display: flex; justify-content: center; gap: 8px; }
 
 /* Footer */
-footer { position: fixed; bottom: 0; width: 100%; padding: 8px; background: white; border-top: 1px solid #ddd; text-align: center; font-size: 11px; }
+footer { position: fixed; bottom: 0; width: 100%; padding: 8px; background: white; border-top: 1px solid #ddd; text-align: center; font-size: 11px; z-index: 500; }
 
 /* Modais */
 .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1500; }
-.modal-content { background: white; width: 420px; margin: 5% auto; padding: 25px; border-radius: 10px; }
+.modal-content { background: white; width: 420px; margin: 5% auto; padding: 25px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+.close { float: right; cursor: pointer; font-size: 20px; color: #aaa; }
+.input-field { margin-bottom: 15px; display: flex; flex-direction: column; }
+.input-field label { font-size: 11px; font-weight: bold; color: #666; margin-bottom: 4px; }
+.input-field input, .input-field textarea { padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: inherit; }
+.star-rating { display: flex; flex-direction: row-reverse; justify-content: flex-end; font-size: 24px; color: #ddd; }
+.star-rating input { display: none; }
+.star-rating label { cursor: pointer; }
+.star-rating input:checked ~ label, .star-rating label:hover, .star-rating label:hover ~ label { color: #f1c40f; }
+.btn-save { width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+.btn-delete { width: 100%; padding: 10px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 8px; font-size: 12px; }
