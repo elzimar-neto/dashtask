@@ -1,41 +1,43 @@
-/* Sidebar e Itens de Grupo */
+:root {
+    --primary: #1a2a6c;
+    --secondary: #b21f1f;
+    --accent: #fdbb2d;
+    --bg: #f4f7f9;
+}
+
+body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; overflow: hidden; }
+
+.hidden { display: none !important; }
+
+/* Header & Sidebar */
+header { background: var(--primary); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; height: 60px; box-sizing: border-box; }
+.main-container { display: flex; height: calc(100vh - 95px); }
+.sidebar { width: 250px; background: white; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; }
+
 .sidebar-item {
-    padding: 12px 15px;
-    margin-bottom: 5px;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: all 0.3s ease;
-    color: #555;
-    font-size: 14px;
+    padding: 12px; margin-bottom: 5px; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; gap: 10px; transition: 0.3s; color: #555;
 }
+.sidebar-item:hover { background: #f0f2f5; }
+.sidebar-item.active { background: var(--primary); color: white; font-weight: bold; }
 
-.sidebar-item:hover {
-    background: #e2e6ea;
-}
+/* Kanban */
+.kanban-board { display: flex; flex-grow: 1; padding: 20px; gap: 20px; overflow-x: auto; align-items: flex-start; }
+.column { background: #ebedf0; border-radius: 8px; width: 320px; min-width: 320px; padding: 10px; display: flex; flex-direction: column; max-height: 100%; }
 
-/* ESTILO PARA O GRUPO ATIVO */
-.sidebar-item.active {
-    background: var(--primary);
-    color: white;
-    font-weight: bold;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
+/* Cards */
+.task-card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative; cursor: grab; }
+.task-card.prio-5 { border-left-color: #e74c3c; }
+.card-actions { position: absolute; top: 10px; right: 10px; color: #ddd; display: flex; gap: 8px; }
+.card-actions i:hover { color: var(--primary); cursor: pointer; }
 
-.sidebar-item i {
-    width: 20px;
-    text-align: center;
-}
+/* Auth & Footer */
+.auth-overlay { position: fixed; inset: 0; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; justify-content: center; align-items: center; z-index: 2000; }
+.login-card { background: white; padding: 40px; border-radius: 15px; text-align: center; width: 320px; }
+footer { position: fixed; bottom: 0; width: 100%; padding: 8px; background: white; text-align: center; font-size: 11px; border-top: 1px solid #ddd; }
 
-/* Ajuste nos ícones de configuração dentro da sidebar */
-.edit-group-icon {
-    margin-left: auto;
-    font-size: 12px;
-    opacity: 0.5;
-}
-
-.edit-group-icon:hover {
-    opacity: 1;
-}
+/* Perfil Dropdown */
+.user-profile { position: relative; cursor: pointer; }
+#user-photo { width: 35px; border-radius: 50%; border: 2px solid white; }
+.user-dropdown { position: absolute; right: 0; top: 45px; background: white; box-shadow: 0 5px 20px rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; width: 200px; z-index: 1000; color: #333; }
+.btn-logout-action { width: 100%; padding: 8px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
