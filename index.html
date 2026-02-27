@@ -1,136 +1,171 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DASHTASK V1.0 | Dashboard</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-</head>
-<body>
+import * as fb from './firebase-config.js';
 
-    <div id="login-screen" class="auth-overlay">
-        <div class="login-card">
-            <i class="fas fa-layer-group logo-icon"></i>
-            <h1>DASHTASK <span>V1.0</span></h1>
-            <p>Gerenciamento de Equipes e Tarefas</p>
-            <button id="btn-login-google" class="btn-google">
-                <i class="fab fa-google"></i> Entrar com Google
-            </button>
+let currentUser = null;
+let selectedMembers = [];
+let unsubscribeTasks = null;
+
+// --- EXPOSIÇÃO GLOBAL (Para os botões do HTML funcionarem) ---
+window.openTaskModal = () => {
+    const form = document.getElementById('task-form');
+    if(form) form.reset();
+    document.getElementById('edit-task-id').value = "";
+    document.getElementById('modal-task-title').innerText = "Nova Tarefa";
+    document.getElementById('modal-task').style.display = 'block';
+};
+
+window.closeModal = () => {
+    document.getElementById('modal-task').style.display = 'none';
+};
+
+window.openGroupModal = () => {
+    if (!currentUser) return alert("Faça login primeiro!");
+    selectedMembers = [currentUser.email];
+    updateMemberUI();
+    document.getElementById('modal-group').style.display = 'block';
+};
+
+window.closeGroupModal = () => {
+    document.getElementById('modal-group').style.display = 'none';
+};
+
+window.toggleUserMenu = (e) => {
+    if(e) e.stopPropagation();
+    document.getElementById('user-menu').classList.toggle('hidden');
+};
+
+// --- AUTENTICAÇÃO ---
+fb.onAuthStateChanged(fb.auth, (user) => {
+    if (user) {
+        currentUser = user;
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('user-photo').src = user.photoURL;
+        document.getElementById('user-full-name').innerText = user.displayName;
+        document.getElementById('user-email').innerText = user.email;
+        loadGroups();
+        startTaskSync();
+    } else {
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('dashboard').classList.add('hidden');
+    }
+});
+
+document.getElementById('btn-login-google').onclick = () => fb.signInWithPopup(fb.auth, fb.provider);
+document.getElementById('btn-logout-profile').onclick = () => fb.signOut(fb.auth).then(() => window.location.reload());
+
+// --- LÓGICA DE WORKSPACE ---
+window.selectTeam = (id, element) => {
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    if (element) element.classList.add('active');
+    document.getElementById('team-selector').value = id;
+    startTaskSync();
+};
+
+function startTaskSync() {
+    if (unsubscribeTasks) unsubscribeTasks();
+    const teamId = document.getElementById('team-selector').value;
+    let q;
+
+    if (teamId === 'personal') {
+        q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", "personal"), fb.where("uid", "==", currentUser.uid));
+    } else {
+        q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", teamId));
+    }
+
+    unsubscribeTasks = fb.onSnapshot(q, (snapshot) => {
+        document.getElementById('list-todo').innerHTML = "";
+        document.getElementById('list-doing').innerHTML = "";
+        document.getElementById('list-done').innerHTML = "";
+        snapshot.forEach(d => renderCard(d.id, d.data()));
+    }, (err) => console.error("Erro no Sync:", err));
+}
+
+// --- TAREFAS ---
+document.getElementById('task-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-task-id').value;
+    const teamId = document.getElementById('team-selector').value;
+    
+    const taskData = {
+        title: document.getElementById('task-title').value,
+        description: document.getElementById('task-desc').value,
+        priority: parseInt(document.querySelector('input[name="priority"]:checked').value),
+        deadline: document.getElementById('task-deadline').value,
+        teamId: teamId,
+        uid: currentUser.uid,
+        author: currentUser.displayName,
+        updatedAt: fb.serverTimestamp()
+    };
+    
+    try {
+        if (id) await fb.updateDoc(fb.doc(fb.db, "tasks", id), taskData);
+        else await fb.addDoc(fb.collection(fb.db, "tasks"), { ...taskData, status: 'todo', createdAt: new Date().toLocaleDateString('pt-BR') });
+        window.closeModal();
+    } catch (err) { alert("Erro ao salvar: " + err.message); }
+};
+
+function renderCard(id, data) {
+    const list = document.getElementById(`list-${data.status}`);
+    const card = document.createElement('div');
+    card.className = `task-card prio-${data.priority}`;
+    card.draggable = true;
+    card.id = id;
+    card.innerHTML = `
+        <div class="card-actions">
+            <i class="fas fa-edit" onclick="window.openTaskEdit('${id}')"></i>
+            <i class="fas fa-trash" onclick="window.deleteTask('${id}')"></i>
         </div>
-    </div>
+        <strong>${data.title}</strong>
+        <p style="font-size:12px; color:#666">${data.description}</p>
+        <div class="stars">${"★".repeat(data.priority)}</div>
+        <small>Prazo: ${data.deadline.split('-').reverse().join('/')}</small>
+    `;
+    card.ondragstart = (e) => e.dataTransfer.setData('text', e.target.id);
+    list.appendChild(card);
+}
 
-    <div id="dashboard" class="hidden">
-        <header>
-            <div class="logo">DASHTASK <span>V1.0</span></div>
-            <div class="header-right">
-                <select id="team-selector" style="display:none;"><option value="personal">Pessoal</option></select>
-                
-                <div class="user-profile" id="profile-trigger">
-                    <img id="user-photo" src="" alt="User">
-                    <div id="user-menu" class="user-dropdown hidden">
-                        <strong id="user-full-name"></strong>
-                        <p id="user-email"></p>
-                        <hr>
-                        <button id="btn-logout-profile" class="btn-logout-action">
-                            <i class="fas fa-sign-out-alt"></i> Sair da Conta
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </header>
+window.openTaskEdit = async (id) => {
+    // Busca dados atuais para preencher o modal
+    const docRef = fb.doc(fb.db, "tasks", id);
+    const snap = await fb.getDocs(fb.query(fb.collection(fb.db, "tasks"), fb.where("__name__", "==", id)));
+    snap.forEach(d => {
+        const data = d.data();
+        document.getElementById('edit-task-id').value = id;
+        document.getElementById('task-title').value = data.title;
+        document.getElementById('task-desc').value = data.description;
+        document.getElementById('task-deadline').value = data.deadline;
+        document.querySelector(`input[name="priority"][value="${data.priority}"]`).checked = true;
+        document.getElementById('modal-task-title').innerText = "Editar Tarefa";
+        document.getElementById('modal-task').style.display = 'block';
+    });
+};
 
-        <div class="main-container">
-            <aside class="sidebar">
-                <div class="sidebar-item active" id="item-personal" onclick="selectTeam('personal', this)">
-                    <i class="fas fa-user"></i> Minhas Tarefas
-                </div>
-                <h3>MEUS GRUPOS</h3>
-                <ul id="groups-list"></ul>
-                <button class="btn-sidebar" onclick="openGroupModal()">+ Criar Novo Grupo</button>
-            </aside>
+window.deleteTask = async (id) => {
+    if(confirm("Excluir tarefa permanentemente?")) await fb.deleteDoc(fb.doc(fb.db, "tasks", id));
+};
 
-            <main class="kanban-board">
-                <section class="column" id="todo" ondrop="drop(event)" ondragover="allowDrop(event)">
-                    <h3>A FAZER</h3>
-                    <div class="task-list" id="list-todo"></div>
-                    <button class="add-task-btn" onclick="openTaskModal()">+ Nova Tarefa</button>
-                </section>
-                <section class="column" id="doing" ondrop="drop(event)" ondragover="allowDrop(event)">
-                    <h3>FAZENDO</h3>
-                    <div class="task-list" id="list-doing"></div>
-                </section>
-                <section class="column" id="done" ondrop="drop(event)" ondragover="allowDrop(event)">
-                    <h3>CONCLUÍDO</h3>
-                    <div class="task-list" id="list-done"></div>
-                </section>
-            </main>
-        </div>
+// --- GRUPOS ---
+function loadGroups() {
+    const q = fb.query(fb.collection(fb.db, "groups"), fb.where("members", "array-contains", currentUser.email));
+    fb.onSnapshot(q, (snapshot) => {
+        const list = document.getElementById('groups-list');
+        list.innerHTML = "";
+        snapshot.forEach(docSnap => {
+            const group = docSnap.data();
+            const id = docSnap.id;
+            const li = document.createElement('li');
+            li.className = "sidebar-item";
+            li.innerHTML = `<span onclick="window.selectTeam('${id}', this.parentElement)"><i class="fas fa-users"></i> ${group.name}</span>`;
+            list.appendChild(li);
+        });
+    });
+}
 
-        <footer>
-            Developed by <strong>Elzimar José de Carvalho Neto</strong>. &copy; Copyright 2026, All Rights Reserved.
-        </footer>
-    </div>
-
-    <div id="modal-task" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <h2 id="modal-task-title">Tarefa</h2>
-            <form id="task-form">
-                <input type="hidden" id="edit-task-id">
-                <div class="input-field">
-                    <label>Título</label>
-                    <input type="text" id="task-title" required>
-                </div>
-                <div class="input-field">
-                    <label>Descrição</label>
-                    <textarea id="task-desc"></textarea>
-                </div>
-                <div class="form-grid">
-                    <div class="input-field">
-                        <label>Prioridade</label>
-                        <div class="star-rating">
-                            <input type="radio" name="priority" value="5" id="s5"><label for="s5">★</label>
-                            <input type="radio" name="priority" value="4" id="s4"><label for="s4">★</label>
-                            <input type="radio" name="priority" value="3" id="s3"><label for="s3">★</label>
-                            <input type="radio" name="priority" value="2" id="s2"><label for="s2">★</label>
-                            <input type="radio" name="priority" value="1" id="s1" checked><label for="s1">★</label>
-                        </div>
-                    </div>
-                    <div class="input-field">
-                        <label>Prazo Limite</label>
-                        <input type="date" id="task-deadline" required>
-                    </div>
-                </div>
-                <button type="submit" class="btn-save" id="btn-save-task">Salvar</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-group" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeGroupModal()">&times;</span>
-            <h2 id="modal-group-title">Gerenciar Grupo</h2>
-            <form id="group-form">
-                <input type="hidden" id="edit-group-id">
-                <div class="input-field">
-                    <label>Nome do Grupo</label>
-                    <input type="text" id="group-name" required>
-                </div>
-                <div class="input-field">
-                    <label>Convidar por E-mail</label>
-                    <div style="display:flex; gap:5px;">
-                        <input type="email" id="member-email" placeholder="exemplo@gmail.com">
-                        <button type="button" onclick="addMemberToList()">Add</button>
-                    </div>
-                    <ul id="temp-member-list"></ul>
-                </div>
-                <button type="submit" class="btn-save">Salvar Grupo</button>
-                <button type="button" id="btn-delete-group" class="btn-delete hidden" onclick="deleteCurrentGroup()">Deletar Grupo</button>
-            </form>
-        </div>
-    </div>
-
-    <script type="module" src="app.js"></script>
-</body>
-</html>
+// Drag & Drop Nativo
+window.allowDrop = (e) => e.preventDefault();
+window.drop = async (e) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('text');
+    const status = e.currentTarget.id;
+    await fb.updateDoc(fb.doc(fb.db, "tasks", taskId), { status });
+};
