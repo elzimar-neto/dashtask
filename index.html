@@ -3,61 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DASHTASK V1.0 | Elzimar Neto</title>
+    <title>DASHTASK V1.0 | By Elzimar Neto</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <div class="logo"><i class="fas fa-tasks"></i> DASHTASK <span>V1.0</span></div>
-        
-        <div class="header-right">
-            <select id="team-selector">
-                <option value="personal">Minhas Tarefas</option>
-                <option value="equipe-ufma">Equipe STED/UFMA</option>
-                <option value="equipe-alquimia">Grupo Alquimia</option>
-            </select>
 
-            <div id="auth-container">
-                <button id="btn-login" class="btn-google"><i class="fab fa-google"></i> Entrar com Google</button>
-                <div id="user-profile" class="hidden">
-                    <img id="user-photo" src="" alt="Foto">
-                    <span id="user-name"></span>
-                    <button id="btn-logout" title="Sair"><i class="fas fa-sign-out-alt"></i></button>
+    <div id="login-screen" class="auth-overlay">
+        <div class="login-card">
+            <i class="fas fa-layer-group logo-icon"></i>
+            <h1>DASHTASK <span>V1.0</span></h1>
+            <p>Organize suas tarefas e grupos de trabalho.</p>
+            <button id="btn-login-google" class="btn-google">
+                <i class="fab fa-google"></i> Entrar com Google
+            </button>
+        </div>
+    </div>
+
+    <div id="dashboard" class="hidden">
+        <header>
+            <div class="logo">DASHTASK <span>V1.0</span></div>
+            <div class="header-right">
+                <select id="team-selector">
+                    <option value="personal">Minhas Tarefas</option>
+                </select>
+                <div class="user-profile" onclick="toggleUserMenu()">
+                    <img id="user-photo" src="" alt="User">
+                    <div id="user-menu" class="user-dropdown hidden">
+                        <p id="user-full-name"></p>
+                        <p id="user-email"></p>
+                        <hr>
+                        <button id="btn-logout"><i class="fas fa-sign-out-alt"></i> Sair</button>
+                    </div>
                 </div>
             </div>
+        </header>
+
+        <div class="main-container">
+            <aside class="sidebar">
+                <h3><i class="fas fa-users"></i> GRUPOS</h3>
+                <ul id="groups-list"></ul>
+                <button class="btn-sidebar" onclick="openGroupModal()">+ Novo Grupo</button>
+            </aside>
+
+            <main class="kanban-board">
+                <section class="column" id="todo" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <h3>A FAZER</h3>
+                    <div class="task-list" id="list-todo"></div>
+                    <button class="add-task-btn" onclick="openTaskModal()">+ Nova Tarefa</button>
+                </section>
+                <section class="column" id="doing" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <h3>FAZENDO</h3>
+                    <div class="task-list" id="list-doing"></div>
+                </section>
+                <section class="column" id="done" ondrop="drop(event)" ondragover="allowDrop(event)">
+                    <h3>CONCLUÍDO</h3>
+                    <div class="task-list" id="list-done"></div>
+                </section>
+            </main>
         </div>
-    </header>
 
-    <main class="kanban-board">
-        <section class="column" id="todo" ondrop="drop(event)" ondragover="allowDrop(event)">
-            <h3><i class="fas fa-list"></i> A FAZER</h3>
-            <div class="task-list" id="list-todo"></div>
-            <button class="add-btn" onclick="openModal()"><i class="fas fa-plus"></i> Adicionar Tarefa</button>
-        </section>
-
-        <section class="column" id="doing" ondrop="drop(event)" ondragover="allowDrop(event)">
-            <h3><i class="fas fa-spinner fa-spin"></i> FAZENDO</h3>
-            <div class="task-list" id="list-doing"></div>
-        </section>
-
-        <section class="column" id="done" ondrop="drop(event)" ondragover="allowDrop(event)">
-            <h3><i class="fas fa-check-double"></i> CONCLUÍDO</h3>
-            <div class="task-list" id="list-done"></div>
-        </section>
-    </main>
+        <footer>
+            Developed by <strong>Elzimar José de Carvalho Neto</strong>. &copy; Copyright 2026, All Rights Reserved.
+        </footer>
+    </div>
 
     <div id="modal-task" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
-            <h2>Nova Tarefa</h2>
+            <h2 id="modal-task-title">Nova Tarefa</h2>
             <form id="task-form">
-                <input type="text" id="task-title" placeholder="Título da tarefa" required>
-                <textarea id="task-desc" placeholder="Descrição ou detalhes técnicos..."></textarea>
-                
-                <div class="form-row">
-                    <div class="group">
-                        <label>Prioridade:</label>
+                <input type="hidden" id="edit-task-id">
+                <div class="input-field">
+                    <label>Título da Tarefa</label>
+                    <input type="text" id="task-title" required>
+                </div>
+                <div class="input-field">
+                    <label>Descrição</label>
+                    <textarea id="task-desc"></textarea>
+                </div>
+                <div class="form-grid">
+                    <div class="input-field">
+                        <label>Prioridade</label>
                         <div class="star-rating">
                             <input type="radio" name="priority" value="5" id="s5"><label for="s5">★</label>
                             <input type="radio" name="priority" value="4" id="s4"><label for="s4">★</label>
@@ -66,12 +93,36 @@
                             <input type="radio" name="priority" value="1" id="s1" checked><label for="s1">★</label>
                         </div>
                     </div>
-                    <div class="group">
-                        <label>Prazo Final:</label>
+                    <div class="input-field">
+                        <label>Prazo Limite (PT-BR)</label>
                         <input type="date" id="task-deadline" required>
                     </div>
                 </div>
-                <button type="submit" class="btn-save">Salvar no Firebase</button>
+                <button type="submit" class="btn-save" id="btn-save-task">Criar Tarefa</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-group" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeGroupModal()">&times;</span>
+            <h2 id="modal-group-title">Gerenciar Grupo</h2>
+            <form id="group-form">
+                <input type="hidden" id="edit-group-id">
+                <div class="input-field">
+                    <label>Nome do Grupo</label>
+                    <input type="text" id="group-name" required>
+                </div>
+                <div class="input-field">
+                    <label>Adicionar Membro (E-mail)</label>
+                    <div class="input-inline">
+                        <input type="email" id="member-email">
+                        <button type="button" onclick="addMemberToList()">Add</button>
+                    </div>
+                    <ul id="temp-member-list"></ul>
+                </div>
+                <button type="submit" class="btn-save" id="btn-save-group">Salvar Grupo</button>
+                <button type="button" id="btn-delete-group" class="btn-delete hidden" onclick="deleteCurrentGroup()">Deletar Grupo</button>
             </form>
         </div>
     </div>
