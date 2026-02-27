@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DASHTASK V1.0</title>
+    <title>DASHTASK V1.0 | Workspace</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -13,10 +13,7 @@
         <div class="login-card">
             <i class="fas fa-layer-group logo-icon"></i>
             <h1>DASHTASK <span>V1.0</span></h1>
-            <p>Gerenciamento de Equipes e Tarefas</p>
-            <button id="btn-login-google" class="btn-google">
-                <i class="fab fa-google"></i> Entrar com Google
-            </button>
+            <button id="btn-login-google" class="btn-google"><i class="fab fa-google"></i> Entrar com Google</button>
         </div>
     </div>
 
@@ -24,18 +21,14 @@
         <header>
             <div class="logo">DASHTASK <span>V1.0</span></div>
             <div class="header-right">
-                <select id="team-selector">
-                    <option value="personal">Minhas Tarefas</option>
-                </select>
+                <select id="team-selector" style="display:none;"><option value="personal">Pessoal</option></select>
+                
                 <div class="user-profile" id="profile-trigger">
                     <img id="user-photo" src="" alt="User">
                     <div id="user-menu" class="user-dropdown hidden">
                         <strong id="user-full-name"></strong>
-                        <p id="user-email"></p>
                         <hr>
-                        <button id="btn-logout-profile" class="btn-logout-action">
-                            <i class="fas fa-sign-out-alt"></i> Sair
-                        </button>
+                        <button id="btn-logout-profile" class="btn-logout-action">Sair</button>
                     </div>
                 </div>
             </div>
@@ -43,7 +36,10 @@
 
         <div class="main-container">
             <aside class="sidebar">
-                <h3><i class="fas fa-users"></i> GRUPOS</h3>
+                <div class="sidebar-item active" onclick="selectTeam('personal', this)">
+                    <i class="fas fa-user"></i> Minhas Tarefas
+                </div>
+                <h3>MEUS GRUPOS</h3>
                 <ul id="groups-list"></ul>
                 <button class="btn-sidebar" onclick="openGroupModal()">+ Novo Grupo</button>
             </aside>
@@ -52,7 +48,7 @@
                 <section class="column" id="todo" ondrop="drop(event)" ondragover="allowDrop(event)">
                     <h3>A FAZER</h3>
                     <div class="task-list" id="list-todo"></div>
-                    <button class="add-task-btn" onclick="openTaskModal()">+ Nova Tarefa</button>
+                    <button class="add-task-btn" onclick="openTaskModal()">+ Add Tarefa</button>
                 </section>
                 <section class="column" id="doing" ondrop="drop(event)" ondragover="allowDrop(event)">
                     <h3>FAZENDO</h3>
@@ -65,42 +61,28 @@
             </main>
         </div>
 
-        <footer>
-            Developed by <strong>Elzimar José de Carvalho Neto</strong>. &copy; Copyright 2026, All Rights Reserved.
-        </footer>
+        <footer>Developed by <strong>Elzimar José de Carvalho Neto</strong>. &copy; 2026</footer>
     </div>
 
     <div id="modal-task" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
-            <h2 id="modal-task-title">Nova Tarefa</h2>
+            <h2 id="modal-task-title">Tarefa</h2>
             <form id="task-form">
                 <input type="hidden" id="edit-task-id">
-                <div class="input-field">
-                    <label>Título</label>
-                    <input type="text" id="task-title" required>
-                </div>
-                <div class="input-field">
-                    <label>Descrição</label>
-                    <textarea id="task-desc"></textarea>
-                </div>
+                <input type="text" id="task-title" placeholder="Título" required>
+                <textarea id="task-desc" placeholder="Descrição"></textarea>
                 <div class="form-grid">
-                    <div class="input-field">
-                        <label>Prioridade</label>
-                        <div class="star-rating">
-                            <input type="radio" name="priority" value="5" id="s5"><label for="s5">★</label>
-                            <input type="radio" name="priority" value="4" id="s4"><label for="s4">★</label>
-                            <input type="radio" name="priority" value="3" id="s3"><label for="s3">★</label>
-                            <input type="radio" name="priority" value="2" id="s2"><label for="s2">★</label>
-                            <input type="radio" name="priority" value="1" id="s1" checked><label for="s1">★</label>
-                        </div>
+                    <div class="star-rating">
+                        <input type="radio" name="priority" value="5" id="s5"><label for="s5">★</label>
+                        <input type="radio" name="priority" value="4" id="s4"><label for="s4">★</label>
+                        <input type="radio" name="priority" value="3" id="s3"><label for="s3">★</label>
+                        <input type="radio" name="priority" value="2" id="s2"><label for="s2">★</label>
+                        <input type="radio" name="priority" value="1" id="s1" checked><label for="s1">★</label>
                     </div>
-                    <div class="input-field">
-                        <label>Prazo (PT-BR)</label>
-                        <input type="date" id="task-deadline" required>
-                    </div>
+                    <input type="date" id="task-deadline" required>
                 </div>
-                <button type="submit" class="btn-save" id="btn-save-task">Salvar Tarefa</button>
+                <button type="submit" class="btn-save">Salvar</button>
             </form>
         </div>
     </div>
@@ -108,22 +90,16 @@
     <div id="modal-group" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeGroupModal()">&times;</span>
-            <h2 id="modal-group-title">Gerenciar Grupo</h2>
+            <h2>Gerenciar Grupo</h2>
             <form id="group-form">
                 <input type="hidden" id="edit-group-id">
-                <div class="input-field">
-                    <label>Nome do Grupo</label>
-                    <input type="text" id="group-name" required>
+                <input type="text" id="group-name" placeholder="Nome do Grupo" required>
+                <div class="input-inline">
+                    <input type="email" id="member-email" placeholder="E-mail do membro">
+                    <button type="button" onclick="addMemberToList()">Add</button>
                 </div>
-                <div class="input-field">
-                    <label>Membros (E-mail)</label>
-                    <div style="display:flex; gap:5px;">
-                        <input type="email" id="member-email" placeholder="email@exemplo.com">
-                        <button type="button" onclick="addMemberToList()">Add</button>
-                    </div>
-                    <ul id="temp-member-list"></ul>
-                </div>
-                <button type="submit" class="btn-save" id="btn-save-group">Salvar Grupo</button>
+                <ul id="temp-member-list"></ul>
+                <button type="submit" class="btn-save">Salvar Grupo</button>
                 <button type="button" id="btn-delete-group" class="btn-delete hidden" onclick="deleteCurrentGroup()">Deletar Grupo</button>
             </form>
         </div>
