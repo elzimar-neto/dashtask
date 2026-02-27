@@ -2,6 +2,7 @@ import * as fb from './firebase-config.js';
 
 let currentUser = null;
 let selectedMembers = [];
+let unsubscribeTasks = null; // Armazena a escuta atual para poder cancelar ao trocar de quadro
 
 // --- AUTENTICAÇÃO ---
 fb.onAuthStateChanged(fb.auth, (user) => {
@@ -22,12 +23,19 @@ fb.onAuthStateChanged(fb.auth, (user) => {
 
 document.getElementById('btn-login-google').onclick = () => fb.signInWithPopup(fb.auth, fb.provider);
 document.getElementById('btn-logout-profile').onclick = () => fb.signOut(fb.auth).then(() => window.location.reload());
-document.getElementById('profile-trigger').onclick = () => document.getElementById('user-menu').classList.toggle('hidden');
+document.getElementById('profile-trigger').onclick = (e) => {
+    e.stopPropagation();
+    document.getElementById('user-menu').classList.toggle('hidden');
+};
 
-// --- GRUPOS ---
+document.addEventListener('click', () => document.getElementById('user-menu').classList.add('hidden'));
+
+// --- GESTÃO DE GRUPOS ---
 window.openGroupModal = () => {
     selectedMembers = [currentUser.email];
     updateMemberUI();
+    document.getElementById('modal-group-title').innerText = "Novo Grupo de Trabalho";
+    document.getElementById('btn-save-group').innerText = "Criar Grupo";
     document.getElementById('modal-group').style.display = 'block';
 };
 
@@ -39,7 +47,7 @@ window.closeGroupModal = () => {
 };
 
 window.addMemberToList = () => {
-    const email = document.getElementById('member-email').value;
+    const email = document.getElementById('member-email').value.trim().toLowerCase();
     if (email && !selectedMembers.includes(email)) {
         selectedMembers.push(email);
         updateMemberUI();
@@ -57,6 +65,7 @@ function loadGroups() {
         const list = document.getElementById('groups-list');
         const selector = document.getElementById('team-selector');
         list.innerHTML = "";
+        const currentVal = selector.value;
         selector.innerHTML = '<option value="personal">Minhas Tarefas</option>';
         
         snapshot.forEach(docSnap => {
@@ -64,10 +73,10 @@ function loadGroups() {
             const id = docSnap.id;
             const li = document.createElement('li');
             li.innerHTML = `<span onclick="selectTeam('${id}')">${group.name}</span> 
-                            ${group.owner === currentUser.uid ? `<i class="fas fa-cog" id="edit-${id}"></i>` : ''}`;
+                            ${group.owner === currentUser.uid ? `<i class="fas fa-cog edit-icon" id="edit-icon-${id}"></i>` : ''}`;
             
             if (group.owner === currentUser.uid) {
-                li.querySelector('i').onclick = (e) => {
+                li.querySelector('.edit-icon').onclick = (e) => {
                     e.stopPropagation();
                     openGroupEdit(id, group.name, group.members);
                 };
@@ -75,6 +84,7 @@ function loadGroups() {
             list.appendChild(li);
             selector.innerHTML += `<option value="${id}">${group.name}</option>`;
         });
+        selector.value = currentVal || 'personal';
     });
 }
 
@@ -83,6 +93,8 @@ function openGroupEdit(id, name, members) {
     document.getElementById('group-name').value = name;
     selectedMembers = [...members];
     updateMemberUI();
+    document.getElementById('modal-group-title').innerText = "Editar Grupo";
+    document.getElementById('btn-save-group').innerText = "Salvar Alterações";
     document.getElementById('btn-delete-group').classList.remove('hidden');
     document.getElementById('modal-group').style.display = 'block';
 }
@@ -90,7 +102,12 @@ function openGroupEdit(id, name, members) {
 document.getElementById('group-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-group-id').value;
-    const data = { name: document.getElementById('group-name').value, members: selectedMembers, owner: currentUser.uid, updatedAt: fb.serverTimestamp() };
+    const data = { 
+        name: document.getElementById('group-name').value, 
+        members: selectedMembers, 
+        owner: currentUser.uid, 
+        updatedAt: fb.serverTimestamp() 
+    };
     if (id) await fb.updateDoc(fb.doc(fb.db, "groups", id), data);
     else await fb.addDoc(fb.collection(fb.db, "groups"), { ...data, createdAt: fb.serverTimestamp() });
     closeGroupModal();
@@ -98,36 +115,69 @@ document.getElementById('group-form').onsubmit = async (e) => {
 
 window.deleteCurrentGroup = async () => {
     const id = document.getElementById('edit-group-id').value;
-    if (confirm("Excluir grupo?")) { await fb.deleteDoc(fb.doc(fb.db, "groups", id)); closeGroupModal(); }
+    if (confirm("Deseja realmente excluir este grupo?")) { 
+        await fb.deleteDoc(fb.doc(fb.db, "groups", id)); 
+        closeGroupModal(); 
+        selectTeam('personal');
+    }
 };
 
-// --- TAREFAS ---
-function startTaskSync() {
-    const teamId = document.getElementById('team-selector').value;
-    let q = (teamId === 'personal') 
-        ? fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", "personal"), fb.where("uid", "==", currentUser.uid))
-        : fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", teamId));
+// --- GESTÃO DE TAREFAS (COM ISOLAMENTO) ---
+window.selectTeam = (id) => {
+    document.getElementById('team-selector').value = id;
+    limparQuadros();
+    startTaskSync();
+};
 
-    fb.onSnapshot(q, (snapshot) => {
-        document.querySelectorAll('.task-list').forEach(l => l.innerHTML = "");
+function startTaskSync() {
+    if (unsubscribeTasks) unsubscribeTasks(); // Cancela escuta do quadro anterior
+
+    const teamId = document.getElementById('team-selector').value;
+    let q;
+
+    if (teamId === 'personal') {
+        q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", "personal"), fb.where("uid", "==", currentUser.uid));
+    } else {
+        q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", teamId));
+    }
+
+    unsubscribeTasks = fb.onSnapshot(q, (snapshot) => {
+        limparQuadros();
         snapshot.forEach(d => renderCard(d.id, d.data()));
-    });
+    }, (err) => console.error("Erro na sincronização:", err));
+}
+
+function limparQuadros() {
+    document.getElementById('list-todo').innerHTML = "";
+    document.getElementById('list-doing').innerHTML = "";
+    document.getElementById('list-done').innerHTML = "";
 }
 
 document.getElementById('task-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-task-id').value;
+    const teamId = document.getElementById('team-selector').value;
+    
     const taskData = {
         title: document.getElementById('task-title').value,
         description: document.getElementById('task-desc').value,
         priority: parseInt(document.querySelector('input[name="priority"]:checked').value),
         deadline: document.getElementById('task-deadline').value,
-        teamId: document.getElementById('team-selector').value,
+        teamId: teamId,
         uid: currentUser.uid,
+        author: currentUser.displayName,
         updatedAt: fb.serverTimestamp()
     };
-    if (id) await fb.updateDoc(fb.doc(fb.db, "tasks", id), taskData);
-    else await fb.addDoc(fb.collection(fb.db, "tasks"), { ...taskData, status: 'todo', createdAt: new Date().toLocaleDateString('pt-BR') });
+    
+    if (id) {
+        await fb.updateDoc(fb.doc(fb.db, "tasks", id), taskData);
+    } else {
+        await fb.addDoc(fb.collection(fb.db, "tasks"), { 
+            ...taskData, 
+            status: 'todo', 
+            createdAt: new Date().toLocaleDateString('pt-BR') 
+        });
+    }
     closeModal();
 };
 
@@ -137,33 +187,49 @@ function renderCard(id, data) {
     card.className = `task-card prio-${data.priority}`;
     card.draggable = true;
     card.id = id;
+    
     card.innerHTML = `
         <div class="card-actions">
-            <i class="fas fa-edit" onclick="openTaskEdit('${id}', ${JSON.stringify(data).replace(/"/g, '&quot;')})"></i>
-            <i class="fas fa-trash" onclick="deleteTask('${id}')"></i>
+            <i class="fas fa-edit btn-edit-task"></i>
+            <i class="fas fa-trash btn-delete-task"></i>
         </div>
         <strong>${data.title}</strong>
         <p style="font-size:12px; color:#666">${data.description}</p>
         <div class="stars">${"★".repeat(data.priority)}</div>
-        <small>Registro: ${data.createdAt} | Prazo: ${data.deadline.split('-').reverse().join('/')}</small>
+        <small style="display:block; font-size:10px; color:#888;">Registro: ${data.createdAt}</small>
+        <small style="font-weight:bold; color:var(--secondary);">Prazo: ${data.deadline.split('-').reverse().join('/')}</small>
     `;
+    
+    card.querySelector('.btn-edit-task').onclick = () => openTaskEdit(id, data);
+    card.querySelector('.btn-delete-task').onclick = () => deleteTask(id);
     card.ondragstart = (e) => e.dataTransfer.setData('text', e.target.id);
     list.appendChild(card);
 }
 
-// GLOBAIS
-window.selectTeam = (id) => { document.getElementById('team-selector').value = id; startTaskSync(); };
-window.openTaskModal = () => { document.getElementById('task-form').reset(); document.getElementById('edit-task-id').value = ""; document.getElementById('modal-task').style.display = 'block'; };
+window.openTaskModal = () => {
+    document.getElementById('task-form').reset();
+    document.getElementById('edit-task-id').value = "";
+    document.getElementById('modal-task-title').innerText = "Nova Tarefa";
+    document.getElementById('modal-task').style.display = 'block';
+};
+
 window.closeModal = () => document.getElementById('modal-task').style.display = 'none';
-window.openTaskEdit = (id, data) => {
+
+function openTaskEdit(id, data) {
     document.getElementById('edit-task-id').value = id;
     document.getElementById('task-title').value = data.title;
     document.getElementById('task-desc').value = data.description;
     document.getElementById('task-deadline').value = data.deadline;
     document.querySelector(`input[name="priority"][value="${data.priority}"]`).checked = true;
+    document.getElementById('modal-task-title').innerText = "Editar Tarefa";
     document.getElementById('modal-task').style.display = 'block';
-};
-window.deleteTask = async (id) => { if(confirm("Excluir tarefa?")) await fb.deleteDoc(fb.doc(fb.db, "tasks", id)); };
+}
+
+async function deleteTask(id) {
+    if (confirm("Excluir esta tarefa permanentemente?")) await fb.deleteDoc(fb.doc(fb.db, "tasks", id));
+}
+
+// DRAG AND DROP
 window.allowDrop = (e) => e.preventDefault();
 window.drop = async (e) => {
     e.preventDefault();
@@ -171,4 +237,5 @@ window.drop = async (e) => {
     const status = e.currentTarget.id;
     await fb.updateDoc(fb.doc(fb.db, "tasks", taskId), { status });
 };
+
 document.getElementById('team-selector').onchange = startTaskSync;
