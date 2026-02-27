@@ -2,7 +2,7 @@ import * as fb from './firebase-config.js';
 
 let currentUser = null;
 let selectedMembers = [];
-let unsubscribeTasks = null; // ESSENCIAL: Controla a conexão com o banco
+let unsubscribeTasks = null;
 
 // --- AUTENTICAÇÃO ---
 fb.onAuthStateChanged(fb.auth, (user) => {
@@ -14,7 +14,7 @@ fb.onAuthStateChanged(fb.auth, (user) => {
         document.getElementById('user-full-name').innerText = user.displayName;
         document.getElementById('user-email').innerText = user.email;
         loadGroups();
-        startTaskSync(); // Inicia com o pessoal
+        startTaskSync(); // Carrega inicial (Pessoal)
     } else {
         document.getElementById('login-screen').classList.remove('hidden');
         document.getElementById('dashboard').classList.add('hidden');
@@ -23,17 +23,23 @@ fb.onAuthStateChanged(fb.auth, (user) => {
 
 document.getElementById('btn-login-google').onclick = () => fb.signInWithPopup(fb.auth, fb.provider);
 document.getElementById('btn-logout-profile').onclick = () => fb.signOut(fb.auth).then(() => window.location.reload());
+document.getElementById('profile-trigger').onclick = (e) => {
+    e.stopPropagation();
+    document.getElementById('user-menu').classList.toggle('hidden');
+};
+document.addEventListener('click', () => document.getElementById('user-menu').classList.add('hidden'));
 
-// --- LÓGICA DE WORKSPACE (ISOLAMENTO) ---
+// --- LÓGICA DE ÁREA DE TRABALHO (ISOLAMENTO) ---
 window.selectTeam = (id, element) => {
-    // 1. Atualiza visual da sidebar
+    // 1. Visual da Sidebar
     document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
-    if(element) element.classList.add('active');
+    if (element) element.classList.add('active');
+    else if (id === 'personal') document.getElementById('item-personal').classList.add('active');
 
-    // 2. Troca o ID no seletor oculto
+    // 2. Troca contexto
     document.getElementById('team-selector').value = id;
-
-    // 3. Reinicia a sincronização
+    
+    // 3. Limpa e reinicia
     limparQuadros();
     startTaskSync();
 };
@@ -45,20 +51,15 @@ function startTaskSync() {
     let q;
 
     if (teamId === 'personal') {
-        q = fb.query(fb.collection(fb.db, "tasks"), 
-            fb.where("teamId", "==", "personal"), 
-            fb.where("uid", "==", currentUser.uid));
+        q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", "personal"), fb.where("uid", "==", currentUser.uid));
     } else {
-        q = fb.query(fb.collection(fb.db, "tasks"), 
-            fb.where("teamId", "==", teamId));
+        q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", teamId));
     }
 
     unsubscribeTasks = fb.onSnapshot(q, (snapshot) => {
         limparQuadros();
         snapshot.forEach(d => renderCard(d.id, d.data()));
-    }, (err) => {
-        console.error("Erro: Provavelmente falta criar o índice no Firebase console.", err);
-    });
+    }, (err) => console.error("Erro de sincronização. Verifique os índices no console F12.", err));
 }
 
 function limparQuadros() {
@@ -83,10 +84,9 @@ document.getElementById('task-form').onsubmit = async (e) => {
         author: currentUser.displayName,
         updatedAt: fb.serverTimestamp()
     };
-
+    
     if (id) await fb.updateDoc(fb.doc(fb.db, "tasks", id), taskData);
     else await fb.addDoc(fb.collection(fb.db, "tasks"), { ...taskData, status: 'todo', createdAt: new Date().toLocaleDateString('pt-BR') });
-    
     closeModal();
 };
 
@@ -97,20 +97,19 @@ function renderCard(id, data) {
     card.draggable = true;
     card.id = id;
     card.innerHTML = `
-        <div class="card-actions">
-            <i class="fas fa-edit" onclick="openTaskEdit('${id}', ${JSON.stringify(data).replace(/"/g, '&quot;')})"></i>
-            <i class="fas fa-trash" onclick="deleteTask('${id}')"></i>
-        </div>
+        <div class="card-actions"><i class="fas fa-edit edit-task"></i><i class="fas fa-trash delete-task"></i></div>
         <strong>${data.title}</strong>
-        <p>${data.description}</p>
+        <p style="font-size:12px; color:#666">${data.description}</p>
         <div class="stars">${"★".repeat(data.priority)}</div>
-        <small>Fim: ${data.deadline.split('-').reverse().join('/')}</small>
+        <small>Prazo: ${data.deadline.split('-').reverse().join('/')}</small>
     `;
+    card.querySelector('.edit-task').onclick = () => openTaskEdit(id, data);
+    card.querySelector('.delete-task').onclick = () => deleteTask(id);
     card.ondragstart = (e) => e.dataTransfer.setData('text', e.target.id);
     list.appendChild(card);
 }
 
-// --- GESTÃO DE GRUPOS ---
+// --- GRUPOS ---
 function loadGroups() {
     const q = fb.query(fb.collection(fb.db, "groups"), fb.where("members", "array-contains", currentUser.email));
     fb.onSnapshot(q, (snapshot) => {
@@ -120,47 +119,31 @@ function loadGroups() {
             const group = docSnap.data();
             const id = docSnap.id;
             const li = document.createElement('li');
-            li.className = "sidebar-item";
+            li.className = `sidebar-item ${document.getElementById('team-selector').value === id ? 'active' : ''}`;
             li.innerHTML = `
                 <span onclick="selectTeam('${id}', this.parentElement)"><i class="fas fa-users"></i> ${group.name}</span>
-                ${group.owner === currentUser.uid ? `<i class="fas fa-cog" onclick="editGroup('${id}', '${group.name}', ${JSON.stringify(group.members)})"></i>` : ''}
+                ${group.owner === currentUser.uid ? `<i class="fas fa-cog edit-group" onclick="editGroup('${id}', '${group.name}', ${JSON.stringify(group.members)})"></i>` : ''}
             `;
             list.appendChild(li);
         });
     });
 }
 
-// ... Restante das funções auxiliares (closeModal, openTaskModal, etc) ...
+// --- UTILITÁRIOS (MODAIS E DRAG) ---
 window.openTaskModal = () => { document.getElementById('task-form').reset(); document.getElementById('edit-task-id').value = ""; document.getElementById('modal-task').style.display = 'block'; };
 window.closeModal = () => document.getElementById('modal-task').style.display = 'none';
 window.openGroupModal = () => { selectedMembers = [currentUser.email]; updateMemberUI(); document.getElementById('modal-group').style.display = 'block'; };
-window.closeGroupModal = () => { document.getElementById('modal-group').style.display = 'none'; document.getElementById('group-form').reset(); };
+window.closeGroupModal = () => document.getElementById('modal-group').style.display = 'none';
 window.addMemberToList = () => { 
     const email = document.getElementById('member-email').value.trim().toLowerCase();
     if (email && !selectedMembers.includes(email)) { selectedMembers.push(email); updateMemberUI(); document.getElementById('member-email').value = ""; }
 };
 function updateMemberUI() { document.getElementById('temp-member-list').innerHTML = selectedMembers.map(m => `<li>${m}</li>`).join(''); }
 
-document.getElementById('group-form').onsubmit = async (e) => {
-    e.preventDefault();
-    const data = { name: document.getElementById('group-name').value, members: selectedMembers, owner: currentUser.uid, updatedAt: fb.serverTimestamp() };
-    await fb.addDoc(fb.collection(fb.db, "groups"), { ...data, createdAt: fb.serverTimestamp() });
-    closeGroupModal();
-};
-
+window.allowDrop = (e) => e.preventDefault();
 window.drop = async (e) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('text');
     const status = e.currentTarget.id;
     await fb.updateDoc(fb.doc(fb.db, "tasks", taskId), { status });
-};
-window.allowDrop = (e) => e.preventDefault();
-window.deleteTask = async (id) => { if(confirm("Excluir?")) await fb.deleteDoc(fb.doc(fb.db, "tasks", id)); };
-window.openTaskEdit = (id, data) => {
-    document.getElementById('edit-task-id').value = id;
-    document.getElementById('task-title').value = data.title;
-    document.getElementById('task-desc').value = data.description;
-    document.getElementById('task-deadline').value = data.deadline;
-    document.querySelector(`input[name="priority"][value="${data.priority}"]`).checked = true;
-    document.getElementById('modal-task').style.display = 'block';
 };
