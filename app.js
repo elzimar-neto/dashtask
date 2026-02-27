@@ -2,9 +2,9 @@ import * as fb from './firebase-config.js';
 
 let currentUser = null;
 let selectedMembers = [];
-let unsubscribeTasks = null; // Armazena a escuta atual para poder cancelar ao trocar de quadro
+let unsubscribeTasks = null; // Essencial para o isolamento dos quadros
 
-// --- AUTENTICAÇÃO ---
+// --- 1. CONTROLE DE AUTENTICAÇÃO ---
 fb.onAuthStateChanged(fb.auth, (user) => {
     if (user) {
         currentUser = user;
@@ -14,7 +14,7 @@ fb.onAuthStateChanged(fb.auth, (user) => {
         document.getElementById('user-full-name').innerText = user.displayName;
         document.getElementById('user-email').innerText = user.email;
         loadGroups();
-        startTaskSync();
+        startTaskSync(); // Inicia com o quadro padrão (Pessoal)
     } else {
         document.getElementById('login-screen').classList.remove('hidden');
         document.getElementById('dashboard').classList.add('hidden');
@@ -27,10 +27,9 @@ document.getElementById('profile-trigger').onclick = (e) => {
     e.stopPropagation();
     document.getElementById('user-menu').classList.toggle('hidden');
 };
-
 document.addEventListener('click', () => document.getElementById('user-menu').classList.add('hidden'));
 
-// --- GESTÃO DE GRUPOS ---
+// --- 2. GESTÃO DE GRUPOS ---
 window.openGroupModal = () => {
     selectedMembers = [currentUser.email];
     updateMemberUI();
@@ -72,11 +71,13 @@ function loadGroups() {
             const group = docSnap.data();
             const id = docSnap.id;
             const li = document.createElement('li');
-            li.innerHTML = `<span onclick="selectTeam('${id}')">${group.name}</span> 
-                            ${group.owner === currentUser.uid ? `<i class="fas fa-cog edit-icon" id="edit-icon-${id}"></i>` : ''}`;
+            li.innerHTML = `
+                <span class="group-name-item" onclick="selectTeam('${id}')">${group.name}</span> 
+                ${group.owner === currentUser.uid ? `<i class="fas fa-cog edit-group-icon"></i>` : ''}
+            `;
             
             if (group.owner === currentUser.uid) {
-                li.querySelector('.edit-icon').onclick = (e) => {
+                li.querySelector('.edit-group-icon').onclick = (e) => {
                     e.stopPropagation();
                     openGroupEdit(id, group.name, group.members);
                 };
@@ -84,7 +85,7 @@ function loadGroups() {
             list.appendChild(li);
             selector.innerHTML += `<option value="${id}">${group.name}</option>`;
         });
-        selector.value = currentVal || 'personal';
+        selector.value = currentVal;
     });
 }
 
@@ -115,36 +116,48 @@ document.getElementById('group-form').onsubmit = async (e) => {
 
 window.deleteCurrentGroup = async () => {
     const id = document.getElementById('edit-group-id').value;
-    if (confirm("Deseja realmente excluir este grupo?")) { 
+    if (confirm("Excluir este grupo e todas as suas tarefas vinculadas?")) { 
         await fb.deleteDoc(fb.doc(fb.db, "groups", id)); 
         closeGroupModal(); 
         selectTeam('personal');
     }
 };
 
-// --- GESTÃO DE TAREFAS (COM ISOLAMENTO) ---
+// --- 3. GESTÃO DE TAREFAS (COM ISOLAMENTO TOTAL) ---
+
 window.selectTeam = (id) => {
     document.getElementById('team-selector').value = id;
-    limparQuadros();
-    startTaskSync();
+    limparQuadros(); // Limpa a tela antes de carregar o novo grupo
+    startTaskSync(); // Inicia a escuta do novo grupo selecionado
 };
 
 function startTaskSync() {
-    if (unsubscribeTasks) unsubscribeTasks(); // Cancela escuta do quadro anterior
+    // Cancela a escuta do quadro anterior para evitar mistura de dados
+    if (unsubscribeTasks) unsubscribeTasks();
 
-    const teamId = document.getElementById('team-selector').value;
+    const currentTeamId = document.getElementById('team-selector').value;
     let q;
 
-    if (teamId === 'personal') {
-        q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", "personal"), fb.where("uid", "==", currentUser.uid));
+    if (currentTeamId === 'personal') {
+        q = fb.query(
+            fb.collection(fb.db, "tasks"), 
+            fb.where("teamId", "==", "personal"), 
+            fb.where("uid", "==", currentUser.uid)
+        );
     } else {
-        q = fb.query(fb.collection(fb.db, "tasks"), fb.where("teamId", "==", teamId));
+        q = fb.query(
+            fb.collection(fb.db, "tasks"), 
+            fb.where("teamId", "==", currentTeamId)
+        );
     }
 
+    // Ativa o "escultor" em tempo real para o quadro específico
     unsubscribeTasks = fb.onSnapshot(q, (snapshot) => {
         limparQuadros();
         snapshot.forEach(d => renderCard(d.id, d.data()));
-    }, (err) => console.error("Erro na sincronização:", err));
+    }, (err) => {
+        console.error("Erro na sincronização. Verifique se os índices foram criados no Console (F12):", err);
+    });
 }
 
 function limparQuadros() {
@@ -156,14 +169,14 @@ function limparQuadros() {
 document.getElementById('task-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-task-id').value;
-    const teamId = document.getElementById('team-selector').value;
+    const activeTeamId = document.getElementById('team-selector').value;
     
     const taskData = {
         title: document.getElementById('task-title').value,
         description: document.getElementById('task-desc').value,
         priority: parseInt(document.querySelector('input[name="priority"]:checked').value),
         deadline: document.getElementById('task-deadline').value,
-        teamId: teamId,
+        teamId: activeTeamId, // Garante que a tarefa seja salva no grupo aberto
         uid: currentUser.uid,
         author: currentUser.displayName,
         updatedAt: fb.serverTimestamp()
@@ -194,10 +207,12 @@ function renderCard(id, data) {
             <i class="fas fa-trash btn-delete-task"></i>
         </div>
         <strong>${data.title}</strong>
-        <p style="font-size:12px; color:#666">${data.description}</p>
-        <div class="stars">${"★".repeat(data.priority)}</div>
-        <small style="display:block; font-size:10px; color:#888;">Registro: ${data.createdAt}</small>
-        <small style="font-weight:bold; color:var(--secondary);">Prazo: ${data.deadline.split('-').reverse().join('/')}</small>
+        <p style="font-size:12px; color:#666; margin: 8px 0;">${data.description}</p>
+        <div class="stars">${"★".repeat(data.priority)}${"☆".repeat(5-data.priority)}</div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+            <small style="font-size:10px; color:#888;">Registro: ${data.createdAt}</small>
+            <small style="font-weight:bold; color:var(--secondary);">Prazo: ${data.deadline.split('-').reverse().join('/')}</small>
+        </div>
     `;
     
     card.querySelector('.btn-edit-task').onclick = () => openTaskEdit(id, data);
@@ -206,6 +221,7 @@ function renderCard(id, data) {
     list.appendChild(card);
 }
 
+// --- 4. UTILITÁRIOS GLOBAIS ---
 window.openTaskModal = () => {
     document.getElementById('task-form').reset();
     document.getElementById('edit-task-id').value = "";
@@ -238,4 +254,8 @@ window.drop = async (e) => {
     await fb.updateDoc(fb.doc(fb.db, "tasks", taskId), { status });
 };
 
-document.getElementById('team-selector').onchange = startTaskSync;
+// Sincroniza ao mudar manualmente pelo seletor do cabeçalho
+document.getElementById('team-selector').onchange = () => {
+    limparQuadros();
+    startTaskSync();
+};
